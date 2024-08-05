@@ -22,6 +22,7 @@ def get_feedback_from_pi(user_id: str):
 ## 2. 얻은 피드백 파일에 따라 모델 재학습
 def refine_model(user_id):
     # refine code ~~~~~~ 별도 파일 분리?
+    #TODO(모델 재학습 코드 작성)
     notify_raspberry_pi()
     pass
 
@@ -30,7 +31,7 @@ def refine_model(user_id):
 
 # 3-1. 모델 재학습 완료 시, 라즈베리파이에 시그널 보냄
 def notify_raspberry_pi():
-    pi_ip = 'ip of raspberry pi' # 수정 필요
+    pi_ip = 'ip of raspberry pi' # 수정 필요  user_id마다 다른 Ip가짐 ->
     url = f'http://{pi_ip}:5000/updateModel'  # raspberry-pi에서 라우팅 처리
     try:
         response = requests.get(url)

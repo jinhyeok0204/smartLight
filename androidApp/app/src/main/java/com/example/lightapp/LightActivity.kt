@@ -26,6 +26,8 @@ class LightActivity : AppCompatActivity() {
         enableEdgeToEdge()
         setContentView(binding.root)
 
+        val serverURI = BuildConfig.MQTT_SERVER_URI
+
     }
 
 
