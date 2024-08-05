@@ -33,7 +33,7 @@ class FeedbackActivity : AppCompatActivity() {
     }
 
     private fun submitFeedback(userId: String, feedback: String) {
-        val url = "http://<your_gcp_vm_ip>:5000/submitFeedback"
+        val url = "http://${BuildConfig.SERVER_URI}/submitFeedback"
         val formBody = FormBody.Builder()
             .add("user_id", userId)
             .add("feedback", feedback)

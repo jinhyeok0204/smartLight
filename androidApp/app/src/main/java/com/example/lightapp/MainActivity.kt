@@ -48,7 +48,7 @@ class MainActivity : AppCompatActivity() {
 
     //login 하는 함수
     private fun login(userId: String, password: String) {
-        val url = "http://${server_uri}:5000/login"
+        val url = "http://${server_uri}/login"
         val formBody = FormBody.Builder()
             .add("username", userId)
             .add("password", password)

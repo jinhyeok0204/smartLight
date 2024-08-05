@@ -59,8 +59,8 @@ class LightActivity : AppCompatActivity() {
             }
         })
 
-        connectToMqttBroker()
-
+        connectToMqttBroker() // Error
+        Log.d("middle", "~~~~~~~~~~")
         setupLights()
 
         binding.feedbackButton.setOnClickListener{
@@ -85,7 +85,7 @@ class LightActivity : AppCompatActivity() {
             }
 
             override fun onFailure(asyncActionToken: IMqttToken?, exception: Throwable?) {
-                Log.d("MQTT", "Failed to connect to MQTT broker")
+                Log.d("MQTT", "Failed to connect to MQTT broker") // Error
             }
         })
     }

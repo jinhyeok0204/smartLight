@@ -65,7 +65,7 @@ class RegisterActivity : AppCompatActivity() {
 
     // 회원 가입 함수
     private fun register(userId: String, password: String) {
-        val url = "http://$server_uri:5000/register"
+        val url = "http://$server_uri/register"
         val formBody = FormBody.Builder()
             .add("username", userId)
             .add("password", password)
