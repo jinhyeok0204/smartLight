@@ -48,7 +48,7 @@ class LightActivity : AppCompatActivity() {
 
             override fun messageArrived(topic: String?, message: MqttMessage?) {
                 for (i in 1..lightCount) {
-                    if (topic == "home/lightStatus$i") {
+                    if (topic == "home/light$i/status") {
                         lightStatusViews[i-1].text = "Light $i Status: ${message.toString()}"
                     }
                 }
@@ -79,7 +79,7 @@ class LightActivity : AppCompatActivity() {
             override fun onSuccess(asyncActionToken: IMqttToken?) {
                 Log.d("MQTT", "Connected to MQTT broker")
                 for(i in 1..lightCount){
-                    mqttClient.subscribe("home/lightStatus$i", 1)
+                    mqttClient.subscribe("home/light$i/status", 1)
                     getLightStatus(i)
                 }
             }
@@ -92,7 +92,7 @@ class LightActivity : AppCompatActivity() {
 
     // 조명의 상태를 가져옴
     private fun getLightStatus(lightNumber: Int){
-        mqttClient.publish("/home/light$lightNumber", MqttMessage("".toByteArray()))
+        mqttClient.publish("/home/light$lightNumber/status", MqttMessage("".toByteArray()))
     }
 
     // 조명의 개수에 따라 동적으로 초기화
@@ -124,6 +124,6 @@ class LightActivity : AppCompatActivity() {
     private fun toggleLight(lightNumber: Int){
         val currentStatus = lightStatusViews[lightNumber - 1].text.toString().split(":")[1]
         val newStatus = if (currentStatus == "ON") "OFF" else "ON"
-        mqttClient.publish("home/light$lightNumber", MqttMessage(newStatus.toByteArray()))
+        mqttClient.publish("home/light$lightNumber/toggle", MqttMessage(newStatus.toByteArray()))
     }
 }
