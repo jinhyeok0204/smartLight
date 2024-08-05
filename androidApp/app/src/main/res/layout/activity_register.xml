@@ -5,23 +5,30 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:padding="16dp"
-    tools:context=".MainActivity">
+    tools:context=".RegisterActivity">
 
     <EditText
-        android:id="@+id/editTextUserId"
+        android:id="@+id/editTextNewUserId"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="User ID" />
+        android:hint="New User ID" />
 
     <EditText
-        android:id="@+id/editTextPassword"
+        android:id="@+id/editTextNewPassword"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="Password"
+        android:hint="New Password"
+        android:inputType="textPassword" />
+
+    <EditText
+        android:id="@+id/editTextConfirmPassword"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Confirm Password"
         android:inputType="textPassword" />
 
     <TextView
-        android:id="@+id/textViewLoginError"
+        android:id="@+id/textViewRegisterError"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:textColor="@android:color/holo_red_dark"
@@ -29,13 +36,7 @@
         android:padding="8dp" />
 
     <Button
-        android:id="@+id/buttonLogin"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Login" />
-
-    <Button
-        android:id="@+id/buttonGoToRegister"
+        android:id="@+id/buttonRegisterNewUser"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Register" />

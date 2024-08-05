@@ -20,7 +20,15 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Load the MQTT server URI from local.properties
-        buildConfigField("String", "MQTT_SERVER_URI", "\"14.43.165.221\"")
+        val localProperties = Properties()
+        val localPropertiesFile = rootProject.file("local.properties")
+        if (localPropertiesFile.exists()) {
+            localPropertiesFile.inputStream().use { stream ->
+                localProperties.load(stream)
+            }
+        }
+        buildConfigField("String", "MQTT_SERVER_URI", "\"${localProperties["MQTT_SERVER_URI"]}\"")
+        buildConfigField("String", "SERVER_URI", "\"${localProperties["SERVER_URI"]}\"")
     }
 
     buildTypes {
@@ -50,7 +58,7 @@ android {
 dependencies {
 
     implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.20")
-    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation(libs.retrofit)
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
     implementation("org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5")
     implementation("org.eclipse.paho:org.eclipse.paho.android.service:1.1.1")
