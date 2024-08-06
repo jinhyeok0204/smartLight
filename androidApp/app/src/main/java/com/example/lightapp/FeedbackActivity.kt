@@ -12,6 +12,7 @@ class FeedbackActivity : AppCompatActivity() {
 
     private val client = OkHttpClient()
     private val binding by lazy {ActivityFeedbackBinding.inflate(layoutInflater)}
+    private val serverUri = BuildConfig.SERVER_URI
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -33,7 +34,7 @@ class FeedbackActivity : AppCompatActivity() {
     }
 
     private fun submitFeedback(userId: String, feedback: String) {
-        val url = "http://<your_gcp_vm_ip>:5000/submitFeedback"
+        val url = "http://${serverUri}:5000/submitFeedback"
         val formBody = FormBody.Builder()
             .add("user_id", userId)
             .add("feedback", feedback)
