@@ -41,6 +41,27 @@ android {
         }
     }
 
+    packagingOptions {
+        resources {
+            // 중복된 파일 병합
+            merges += "META-INF/INDEX.LIST"
+            merges.add("META-INF/io.netty.versions.properties")
+            // 특정 파일 제외
+            excludes += setOf(
+                "META-INF/DEPENDENCIES",
+                "META-INF/LICENSE",
+                "META-INF/LICENSE.txt",
+                "META-INF/license.txt",
+                "META-INF/NOTICE",
+                "META-INF/NOTICE.txt",
+                "META-INF/notice.txt",
+                "META-INF/*.SF",
+                "META-INF/*.DSA",
+                "META-INF/*.RSA"
+            )
+        }
+    }
+
     buildFeatures{
         viewBinding = true
         buildConfig = true
@@ -56,19 +77,21 @@ android {
 }
 
 dependencies {
-
-    implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.20")
+    implementation(libs.kotlin.stdlib)
     implementation(libs.retrofit)
-    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
-    implementation("org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5")
-    implementation("org.eclipse.paho:org.eclipse.paho.android.service:1.1.1")
+    implementation(libs.converter.gson)
+    implementation(libs.org.eclipse.paho.client.mqttv3)
+    implementation(libs.org.eclipse.paho.android.service)
 
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.appcompat)
-    implementation(libs.material)
-    implementation(libs.androidx.activity)
+    implementation(libs.androidx.core.ktx.v190)
+    implementation(libs.androidx.appcompat.v151)
+    implementation(libs.material.v161)
+    implementation(libs.androidx.activity.ktx)
     implementation(libs.androidx.constraintlayout)
+
+    implementation("androidx.localbroadcastmanager:localbroadcastmanager:1.1.0")
+
     testImplementation(libs.junit)
-    androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(libs.androidx.junit.v113)
+    androidTestImplementation(libs.androidx.espresso.core.v340)
 }

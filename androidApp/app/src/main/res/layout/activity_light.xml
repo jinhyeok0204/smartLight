@@ -23,6 +23,9 @@
         android:id="@+id/feedbackButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Give Feedback" />
+        android:text="Give Feedback"
+        android:background="@color/design_default_color_primary"
+        android:textColor="@android:color/white"
+        android:padding="12dp" />
 
 </LinearLayout>
