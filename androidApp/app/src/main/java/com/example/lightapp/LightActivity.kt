@@ -14,23 +14,18 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.ConstraintSet
-
 import com.example.lightapp.databinding.ActivityLightBinding
+import com.hivemq.client.mqtt.MqttClient
 
-import org.eclipse.paho.android.service.MqttAndroidClient
-import org.eclipse.paho.client.mqttv3.IMqttActionListener
-import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken
-import org.eclipse.paho.client.mqttv3.IMqttToken
-import org.eclipse.paho.client.mqttv3.MqttCallback
-import org.eclipse.paho.client.mqttv3.MqttConnectOptions
-import org.eclipse.paho.client.mqttv3.MqttMessage
-
+import com.hivemq.client.mqtt.datatypes.MqttQos
+import com.hivemq.client.mqtt.mqtt3.Mqtt3AsyncClient
+import java.nio.charset.StandardCharsets
 
 // 조명 조절 Activity
 class LightActivity : AppCompatActivity() {
 
-    private val binding by lazy {ActivityLightBinding.inflate(layoutInflater)}
-    private lateinit var mqttClient: MqttAndroidClient
+    private val binding by lazy { ActivityLightBinding.inflate(layoutInflater) }
+    private lateinit var mqttClient: Mqtt3AsyncClient
     private val serverURI = BuildConfig.MQTT_SERVER_URI
 
     private val lightCount = 3 // 조명의 개수
@@ -47,66 +42,64 @@ class LightActivity : AppCompatActivity() {
         userId = intent.getStringExtra("USER_ID").orEmpty()
         val clientID = "AndroidClient_$userId"
 
-        mqttClient = MqttAndroidClient(this.applicationContext, serverURI, clientID)
-
-        mqttClient.setCallback(object: MqttCallback {
-            override fun connectionLost(cause: Throwable?) {
-                Toast.makeText(this@LightActivity, "connection Lost", Toast.LENGTH_SHORT).show()
-            }
-
-            override fun messageArrived(topic: String?, message: MqttMessage?) {
-                for (i in 1..lightCount) {
-                    if (topic == "home/light$i/status") {
-                        lightStatusViews[i-1].text = "Light $i Status: ${message.toString()}"
-                    }
-                }
-            }
-
-            override fun deliveryComplete(token: IMqttDeliveryToken?) {
-               Log.d("onCreate", "Delivery Complete")
-            }
-        })
+        mqttClient = MqttClient.builder()
+            .useMqttVersion3()
+            .serverHost(serverURI)
+            .serverPort(1883)
+            .identifier(clientID)
+            .buildAsync()
 
         connectToMqttBroker()
         setupLights()
 
-        binding.feedbackButton.setOnClickListener{
+        binding.feedbackButton.setOnClickListener {
             val intent = Intent(this, FeedbackActivity::class.java)
             startActivity(intent)
         }
     }
 
-
-    private fun connectToMqttBroker(){
-        val options = MqttConnectOptions()
-        options.isAutomaticReconnect = true
-        options.isCleanSession = true
-        options.keepAliveInterval = 60
-
-
-        mqttClient.connect(options, null, object: IMqttActionListener{
-            override fun onSuccess(asyncActionToken: IMqttToken?) {
-                Log.d("MQTT", "Connected to MQTT broker")
-                for(i in 1..lightCount){
-                    mqttClient.subscribe("home/light$i/status", 1)
-                    getLightStatus(i)
+    private fun connectToMqttBroker() {
+        mqttClient.connectWith()
+            .cleanSession(true)
+            .keepAlive(60)
+            .send()
+            .whenComplete { ack, throwable ->
+                if (throwable != null) {
+                    Log.e("MQTT", "Failed to connect to MQTT broker", throwable)
+                    retryConnection()
+                } else {
+                    Log.d("MQTT", "Connected to MQTT broker")
+                    for (i in 1..lightCount) {
+                        mqttClient.subscribeWith()
+                            .topicFilter("home/light$i/status")
+                            .qos(MqttQos.AT_LEAST_ONCE)
+                            .callback { publish ->
+                                val message = String(publish.payloadAsBytes, StandardCharsets.UTF_8)
+                                runOnUiThread {
+                                    lightStatusViews[i - 1].text = "Light $i Status: $message"
+                                    updateLightImage(i - 1, message)
+                                }
+                            }
+                            .send()
+                        getLightStatus(i)
+                    }
                 }
             }
+    }
 
-            override fun onFailure(asyncActionToken: IMqttToken?, exception: Throwable?) {
-                Log.e("MQTT", "Failed to connect to MQTT broker", exception)
-                //Retry connection after delay
-                Handler(Looper.getMainLooper()).postDelayed({
-                    connectToMqttBroker()
-                }, 5000)
-            }
-        })
+    private fun retryConnection() {
+        Handler(Looper.getMainLooper()).postDelayed({
+            connectToMqttBroker()
+        }, 5000)
     }
 
     // 조명의 상태를 가져옴
     private fun getLightStatus(lightNumber: Int) {
-        if (mqttClient.isConnected) {
-            mqttClient.publish("home/light$lightNumber/status", MqttMessage("".toByteArray()))
+        if (mqttClient.state.isConnected) {
+            mqttClient.publishWith()
+                .topic("home/light$lightNumber/status")
+                .payload(ByteArray(0))
+                .send()
         } else {
             Toast.makeText(this, "Not connected to MQTT broker", Toast.LENGTH_SHORT).show()
         }
@@ -131,7 +124,6 @@ class LightActivity : AppCompatActivity() {
                 id = View.generateViewId()
                 text = "Light $i Status: Unknown"
                 textSize = 30f
-
             }
 
             val imageView = ImageView(this).apply {
@@ -182,10 +174,14 @@ class LightActivity : AppCompatActivity() {
 
     // 조명 on / off
     private fun toggleLight(lightNumber: Int) {
-        if (mqttClient.isConnected) {
+        if (mqttClient.state.isConnected) {
             val currentStatus = lightStatusViews[lightNumber - 1].text.toString().split(":")[1].trim()
             val newStatus = if (currentStatus == "ON") "OFF" else "ON"
-            mqttClient.publish("home/light$lightNumber/toggle", MqttMessage(newStatus.toByteArray()))
+            mqttClient.publishWith()
+                .topic("home/light$lightNumber/toggle")
+                .payload(newStatus.toByteArray(StandardCharsets.UTF_8))
+                .qos(MqttQos.AT_LEAST_ONCE)
+                .send()
         } else {
             Toast.makeText(this, "Not connected to MQTT broker", Toast.LENGTH_SHORT).show()
         }

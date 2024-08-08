@@ -80,8 +80,7 @@ dependencies {
     implementation(libs.kotlin.stdlib)
     implementation(libs.retrofit)
     implementation(libs.converter.gson)
-    implementation(libs.org.eclipse.paho.client.mqttv3)
-    implementation(libs.org.eclipse.paho.android.service)
+    implementation (libs.hivemq.mqtt.client)
 
     implementation(libs.androidx.core.ktx.v190)
     implementation(libs.androidx.appcompat.v151)

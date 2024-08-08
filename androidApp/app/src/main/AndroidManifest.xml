@@ -36,18 +36,6 @@
             </intent-filter>
         </activity>
 
-        <service android:name="org.eclipse.paho.android.service.MqttService"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="org.eclipse.paho.android.service.MqttService"/>
-            </intent-filter>
-        </service>
-
-        <!-- Add the AlarmPingSender declaration with android:exported -->
-        <receiver
-            android:name="org.eclipse.paho.android.service.AlarmPingSender"
-            android:exported="false"
-            tools:ignore="Instantiatable" />
 
     </application>
 
