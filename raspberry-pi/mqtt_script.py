@@ -30,7 +30,7 @@ def on_message(client, userdata, msg):
         new_status = msg.payload.decode()
         light_status[light_number] = new_status
         # 아두이노에 상태 변경 메시지 전송
-        client.publish(f"arduino/light/{light_number}/toggle", new_status)
+        client.publish(f"arduino/light{light_number}/toggle", new_status)
     elif 'status' in msg.topic:
         # 아두이노에 상태 요청 메시지 전송
         client.publish(f"arduino/light{light_number}/status", "get")
