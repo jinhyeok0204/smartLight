@@ -109,6 +109,7 @@ class LightActivity : AppCompatActivity() {
     private fun setupLights() {
         val lightContainer = binding.lightContainer
 
+
         for (i in 1..lightCount) {
             val lightLayout = ConstraintLayout(this).apply {
                 id = View.generateViewId()
@@ -175,13 +176,22 @@ class LightActivity : AppCompatActivity() {
     // 조명 on / off
     private fun toggleLight(lightNumber: Int) {
         if (mqttClient.state.isConnected) {
+            // 현재 상태 가져오기
             val currentStatus = lightStatusViews[lightNumber - 1].text.toString().split(":")[1].trim()
             val newStatus = if (currentStatus == "ON") "OFF" else "ON"
+
+            // 상태 변경 메시지 전송
             mqttClient.publishWith()
                 .topic("home/light$lightNumber/toggle")
                 .payload(newStatus.toByteArray(StandardCharsets.UTF_8))
                 .qos(MqttQos.AT_LEAST_ONCE)
                 .send()
+
+            // UI 업데이트: 토글 버튼을 누를 때 즉시 상태를 업데이트
+            runOnUiThread {
+                lightStatusViews[lightNumber - 1].text = "Light $lightNumber Status: $newStatus"
+                updateLightImage(lightNumber - 1, newStatus)
+            }
         } else {
             Toast.makeText(this, "Not connected to MQTT broker", Toast.LENGTH_SHORT).show()
         }
