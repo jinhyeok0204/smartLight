@@ -7,11 +7,8 @@ from sklearn.model_selection import train_test_split
 from tensorflow import keras
 
 
+df = pd.read_csv('features.csv')
 
-df = pd.read_csv('Data/features_3_sec.csv')
-
-df = df.drop(labels='filename', axis=1)
-df = df.drop(labels='length', axis=1)
 print(df.dtypes)
 # -------------------
 class_list = df.iloc[:, -1]
@@ -47,11 +44,19 @@ def plot_validate(history):
 
 
 model = keras.models.Sequential([
-    keras.layers.Dense(512, activation='relu', input_shape=(X_train.shape[1],)),
+    keras.layers.Conv1D(64, kernel_size=3, activation='relu', padding='same', input_shape=(X_train.shape[1], 1)),
+    keras.layers.MaxPooling1D(pool_size=2),
     keras.layers.Dropout(0.2),
 
-    keras.layers.Dense(256, activation='relu'),
+    keras.layers.Conv1D(128, kernel_size=3, activation='relu', padding='same'),
+    keras.layers.MaxPooling1D(pool_size=2),
     keras.layers.Dropout(0.2),
+
+    keras.layers.Conv1D(256, kernel_size=3, activation='relu', padding='same'),
+    keras.layers.MaxPooling1D(pool_size=2),
+    keras.layers.Dropout(0.2),
+
+    keras.layers.Flatten(),
 
     keras.layers.Dense(128, activation='relu'),
     keras.layers.Dropout(0.2),
@@ -69,14 +74,10 @@ test_loss, test_acc = model.evaluate(X_test, y_test, batch_size=128)
 print("The test Loss is : ", test_loss)
 print("\nThe Best Test Accuracy is : ", test_acc * 100)
 
-model_path = "music_model.keras"
+model_path = "music_model.h5"
 model.save(model_path)
 print("Model saved")
 
 # 모델 로드
 loaded_model = keras.models.load_model(model_path)
 predictions = loaded_model.predict(X_test)
-
-
-
-
