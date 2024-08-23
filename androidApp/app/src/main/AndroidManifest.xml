@@ -21,13 +21,13 @@
             android:name=".RegisterActivity"
             android:exported="false" />
         <activity
-            android:name=".MainActivity"
+            android:name=".LightActivity"
             android:exported="false" />
         <activity
             android:name=".FeedbackActivity"
             android:exported="false" />
         <activity
-            android:name=".LightActivity"
+            android:name=".MainActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

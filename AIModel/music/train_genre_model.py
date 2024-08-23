@@ -1,83 +1,107 @@
-import pandas as pd
+import librosa
+import os
+from scipy.io import wavfile
+import xgboost
 import numpy as np
-import matplotlib.pyplot as plt
-from sklearn.preprocessing import LabelEncoder
-from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import train_test_split
-from tensorflow import keras
+
+def slice_audio_file(file_path, output_dir, slice_duration=3):
+    y, sr = librosa.load(file_path)
+    y, _ = librosa.effects.trim(y)
+
+    total_duration = librosa.get_duration(y = y, sr= sr)
+
+    # 슬라이스 개수
+
+    num_slices = int(total_duration // slice_duration)
+
+    for i in range(num_slices):
+        start_sample = int(i * slice_duration * sr)
+        end_sample = int((i + 1) * slice_duration * sr)
+        slice_y = y[start_sample:end_sample]
+
+        output_file = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(file_path))[0]}_slice_{i}.wav")
+        wavfile.write(output_file, sr, slice_y)
+
+file = "033-거미-친구라도 될 걸 그랬어.mp3"
+
+output_dir = "033_sliced"
+
+os.makedirs(output_dir, exist_ok=True)
+
+slice_audio_file(file, output_dir, 10)
+
+def extraction(file_path):
+    y, sr = librosa.load(file_path)
+
+    # 1. Chroma STFT
+    chroma_stft = librosa.feature.chroma_stft(y=y, sr=sr)
+    chroma_stft_mean = np.mean(chroma_stft)
+    chroma_stft_var = np.var(chroma_stft)
+
+    # 2. RMS (Root Mean Square)
+    rms = librosa.feature.rms(y=y)
+    rms_mean = np.mean(rms)
+    rms_var = np.var(rms)
+
+    # 3. Spectral Centroid
+    spectral_centroid = librosa.feature.spectral_centroid(y=y, sr=sr)
+    spectral_centroid_mean = np.mean(spectral_centroid)
+    spectral_centroid_var = np.var(spectral_centroid)
+
+    # 5. Spectral Rolloff
+    rolloff = librosa.feature.spectral_rolloff(y=y, sr=sr)
+    rolloff_mean = np.mean(rolloff)
+    rolloff_var = np.var(rolloff)
+
+    # 6. Zero Crossing Rate
+    zero_crossing_rate = librosa.feature.zero_crossing_rate(y)
+    zero_crossing_rate_mean = np.mean(zero_crossing_rate)
+    zero_crossing_rate_var = np.var(zero_crossing_rate)
+
+    # 7. Harmony
+    harmony = librosa.effects.harmonic(y)
+    harmony_mean = np.mean(harmony)
+    harmony_var = np.var(harmony)
+
+    # 8. Perceptual Features (e.g., Spectral Contrast)
+    perceptr = librosa.feature.spectral_contrast(y=y, sr=sr)
+    perceptr_mean = np.mean(perceptr)
+    perceptr_var = np.var(perceptr)
+
+    # 9. Tempo
+    tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
+
+    # 10. MFCCs
+    mfccs = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=20)
+    mfcc_means = [np.mean(mfcc) for mfcc in mfccs]
+    mfcc_vars = [np.var(mfcc) for mfcc in mfccs]
+
+    features = [
+        chroma_stft_mean, chroma_stft_var,
+        rms_mean, rms_var,
+        spectral_centroid_mean, spectral_centroid_var,
+        rolloff_mean, rolloff_var,
+        zero_crossing_rate_mean, zero_crossing_rate_var,
+        harmony_mean, harmony_var,
+        perceptr_mean, perceptr_var,
+        tempo[0], *mfcc_means, *mfcc_vars,
+    ]
+
+    return np.array(features)
+
+my_model = xgboost.XGBClassifier()
+my_model.load_model('xgb_model.h5')
 
 
-df = pd.read_csv('features.csv')
+for sliced_file in os.listdir(output_dir):
+    features = extraction(os.path.join(output_dir, sliced_file)).reshape(1, -1)
+    prediction = my_model.predict(features)
 
-print(df.dtypes)
-# -------------------
-class_list = df.iloc[:, -1]
+    # Calculate predicted class and probability
+    predicted_class = prediction[0]
 
+    # Map class index to class name
+    class_names = ['blues', 'classical', 'country', 'disco', 'hiphop', 'jazz', 'metal', 'pop', 'reggae', 'rock']
 
-convertor = LabelEncoder()
-
-# fit_transform(): Fit label encoder and return encoded labels.
-y = convertor.fit_transform(class_list)
-
-print(f"class names: {convertor.classes_}")
-
-
-fit = StandardScaler()
-X = fit.fit_transform(np.array(df.iloc[:, :-1], dtype=float))
-
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.33)
-
-
-def train_model(model, epochs, optimizer):
-    batch_size = 128
-
-    model.compile(optimizer=optimizer,
-                  loss='sparse_categorical_crossentropy',
-                  metrics=['accuracy'])
-    return model.fit(X_train, y_train, validation_data=(X_test, y_test), batch_size=batch_size, epochs=epochs)
-
-
-def plot_validate(history):
-    print("Validation Accuracy", max(history.history["val_accuracy"]))
-    pd.DataFrame(history.history).plot(figSize=(12, 6))
-    plt.show()
-
-
-model = keras.models.Sequential([
-    keras.layers.Conv1D(64, kernel_size=3, activation='relu', padding='same', input_shape=(X_train.shape[1], 1)),
-    keras.layers.MaxPooling1D(pool_size=2),
-    keras.layers.Dropout(0.2),
-
-    keras.layers.Conv1D(128, kernel_size=3, activation='relu', padding='same'),
-    keras.layers.MaxPooling1D(pool_size=2),
-    keras.layers.Dropout(0.2),
-
-    keras.layers.Conv1D(256, kernel_size=3, activation='relu', padding='same'),
-    keras.layers.MaxPooling1D(pool_size=2),
-    keras.layers.Dropout(0.2),
-
-    keras.layers.Flatten(),
-
-    keras.layers.Dense(128, activation='relu'),
-    keras.layers.Dropout(0.2),
-
-    keras.layers.Dense(64, activation='relu'),
-    keras.layers.Dropout(0.2),
-
-    keras.layers.Dense(10, activation='softmax')
-])
-
-print(model.summary())
-model_history = train_model(model=model, epochs=600, optimizer='adam')
-
-test_loss, test_acc = model.evaluate(X_test, y_test, batch_size=128)
-print("The test Loss is : ", test_loss)
-print("\nThe Best Test Accuracy is : ", test_acc * 100)
-
-model_path = "music_model.h5"
-model.save(model_path)
-print("Model saved")
-
-# 모델 로드
-loaded_model = keras.models.load_model(model_path)
-predictions = loaded_model.predict(X_test)
+    # Print result
+    print(f"Predicted class: {class_names[predicted_class]}")
