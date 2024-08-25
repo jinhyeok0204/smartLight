@@ -44,33 +44,29 @@ def plot_validate(history):
 
 
 model = keras.models.Sequential([
-    keras.layers.Conv1D(64, kernel_size=3, activation='relu', padding='same', input_shape=(X_train.shape[1], 1)),
-    keras.layers.MaxPooling1D(pool_size=2),
-    keras.layers.Dropout(0.2),
-
-    keras.layers.Conv1D(128, kernel_size=3, activation='relu', padding='same'),
-    keras.layers.MaxPooling1D(pool_size=2),
-    keras.layers.Dropout(0.2),
-
-    keras.layers.Conv1D(256, kernel_size=3, activation='relu', padding='same'),
-    keras.layers.MaxPooling1D(pool_size=2),
-    keras.layers.Dropout(0.2),
-
-    keras.layers.Flatten(),
+    keras.layers.Dense(256, input_shape=(X_train.shape[1],), activation='relu'),
+    keras.layers.BatchNormalization(),
+    keras.layers.Dropout(0.3),
 
     keras.layers.Dense(128, activation='relu'),
-    keras.layers.Dropout(0.2),
+    keras.layers.BatchNormalization(),
+    keras.layers.Dropout(0.3),
 
     keras.layers.Dense(64, activation='relu'),
-    keras.layers.Dropout(0.2),
+    keras.layers.BatchNormalization(),
+    keras.layers.Dropout(0.3),
+
+    keras.layers.Dense(32, activation='relu'),
+    keras.layers.BatchNormalization(),
+    keras.layers.Dropout(0.3),
 
     keras.layers.Dense(10, activation='softmax')
 ])
 
 print(model.summary())
-model_history = train_model(model=model, epochs=600, optimizer='adam')
+model_history = train_model(model=model, epochs=200, optimizer='adam')
 
-test_loss, test_acc = model.evaluate(X_test, y_test, batch_size=128)
+test_loss, test_acc = model.evaluate(X_test, y_test, batch_size=32)
 print("The test Loss is : ", test_loss)
 print("\nThe Best Test Accuracy is : ", test_acc * 100)
 
