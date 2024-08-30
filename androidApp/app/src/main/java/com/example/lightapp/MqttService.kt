@@ -100,6 +100,20 @@ class MqttService : Service() {
         }
     }
 
+    fun publishMusicMode(turnOn: Boolean){
+        val message = if (turnOn) "MUSIC_MODE_ON" else "MUSIC_MODE_OFF"
+        if(mqttClient.state.isConnected){
+            mqttClient.publishWith()
+                .topic("home/musicmode")
+                .payload(message.toByteArray(StandardCharsets.UTF_8))
+                .qos(MqttQos.AT_LEAST_ONCE)
+                .send()
+            Log.d("MqttService", "Music mode set to $message")
+        } else {
+            Toast.makeText(this, "Not connected to MQTT broker", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     override fun onBind(intent:Intent?): IBinder {
         return binder
     }

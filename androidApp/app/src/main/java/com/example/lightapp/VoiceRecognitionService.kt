@@ -93,32 +93,46 @@ class VoiceRecognitionService : Service() {
     }
 
     private fun handleCommand(command: String){
-        if(command.contains("조명아")){
-            // 전체 조명 제어
-            if(command.contains("전체")){
-                when{
-                    command.contains("켜줘") -> toggleAllLights("ON")
-                    command.contains("꺼줘") -> toggleAllLights("OFF")
-                }
-            } else {
-                // 개별 조명 제어
-                val lightNumber = when {
-                    command.contains("1번") -> 1
-                    command.contains("2번") -> 2
-                    command.contains("3번") -> 3
-                    else -> null
-                }
+        // 모든 공백을 제거하여 비교 수행
+        val nomCommand = command.replace(" ", "")
 
-                lightNumber?.let{
-                    when{
-                        command.contains("켜줘") -> mqttService?.publishLightToggle(it, "ON")
-                        command.contains("꺼줘") -> mqttService?.publishLightToggle(it, "OFF")
-                        else -> Log.d("VoiceRecognition", "Unknown command for light $it : $command")
+        // "조명아"가 포함된 명령어만 처리
+        if(nomCommand.contains("조명아")){
+            when{
+                nomCommand.contains("음악모드켜줘")->activateMusicMode()
+                nomCommand.contains("음악모드꺼줘")->deactivateMusicMode()
+                nomCommand.contains("전체켜줘")->toggleAllLights("ON")
+                nomCommand.contains("전체꺼줘")->toggleAllLights("OFF")
+
+                else -> {
+                    val lightNumber = when {
+                        nomCommand.contains("1번") -> 1
+                        nomCommand.contains("2번") -> 2
+                        nomCommand.contains("3번") -> 3
+                        else -> null
                     }
-                } ?: Log.d("VoiceRecognition", "No valid light number found in command: $command")
+
+                    lightNumber?.let{
+                        when{
+                            nomCommand.contains("켜줘") -> mqttService?.publishLightToggle(it, "ON")
+                            nomCommand.contains("꺼줘") -> mqttService?.publishLightToggle(it, "OFF")
+                            else -> Log.e("VoiceRecognitionService", "커맨드가 잘못됐습니다 : $command")
+                        }
+                    }
+                }
             }
         }
     }
+
+    // 음악 모드와 관련된 함수 (activateMusicMode & deactivateMusicMode)
+    private fun activateMusicMode() {
+        mqttService?.publishMusicMode(true)
+    }
+
+    private fun deactivateMusicMode(){
+        mqttService?.publishMusicMode(false)
+    }
+
 
     // 전체 조명 제어 함수
     private fun toggleAllLights(status: String){
