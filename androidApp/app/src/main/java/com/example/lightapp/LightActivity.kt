@@ -8,26 +8,21 @@ import android.content.IntentFilter
 import android.content.ServiceConnection
 import android.os.Build
 import android.os.Bundle
-import android.os.Handler
+
 import android.os.IBinder
-import android.os.Looper
+
 import android.util.Log
 import android.view.View
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.widget.Toast
+
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.ConstraintSet
 import com.example.lightapp.databinding.ActivityLightBinding
-import com.hivemq.client.mqtt.MqttClient
-
-import com.hivemq.client.mqtt.datatypes.MqttQos
-import com.hivemq.client.mqtt.mqtt3.Mqtt3AsyncClient
-import java.nio.charset.StandardCharsets
 
 // 조명 조절 Activity
 class LightActivity : AppCompatActivity() {
@@ -60,6 +55,7 @@ class LightActivity : AppCompatActivity() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val lightNumber = intent?.getIntExtra("LIGHT_NUMBER", -1) ?: return
             val status = intent.getStringExtra("STATUS") ?: return
+            Log.d("STATUS_RECEIVER", "Received update: Light $lightNumber, Status $status")
             updateLightStatus(lightNumber, status)
         }
     }
@@ -69,6 +65,7 @@ class LightActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(binding.root)
 
+        // 리시버 등록
         registerReceiver(statusReceiver, IntentFilter("LIGHT_STATUS_UPDATE"), RECEIVER_NOT_EXPORTED)
 
         setupLights()
@@ -89,11 +86,11 @@ class LightActivity : AppCompatActivity() {
             isBound = false
         }
     }
+
     override fun onDestroy(){
         unregisterReceiver(statusReceiver)
         super.onDestroy()
     }
-
 
     // 조명의 개수에 따라 동적으로 초기화
     private fun setupLights() {
@@ -104,6 +101,7 @@ class LightActivity : AppCompatActivity() {
             lightContainer.addView(lightLayout)
         }
     }
+
     private fun createLightLayout(lightNumber: Int):ConstraintLayout{
         val lightLayout = ConstraintLayout(this).apply {
             id = View.generateViewId()
@@ -117,7 +115,7 @@ class LightActivity : AppCompatActivity() {
 
         val textView = TextView(this).apply {
             id = View.generateViewId()
-            text = "Light $lightNumber Status: Unknown"
+            text = "Light $lightNumber Status: OFF"
             textSize = 30f
         }
 
@@ -174,6 +172,7 @@ class LightActivity : AppCompatActivity() {
 
     private fun updateLightStatus(lightNumber: Int, status:String){
         runOnUiThread{
+            Log.d("LIGHT", "$lightNumber , $status")
             lightStatusViews[lightNumber - 1].text = "Light $lightNumber Status: $status"
             updateLightImage(lightNumber - 1, status)
         }

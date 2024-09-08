@@ -1,6 +1,5 @@
 package com.example.lightapp
 
-import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
@@ -9,17 +8,23 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.os.Build
-import android.os.Bundle
 import android.os.IBinder
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import ai.picovoice.porcupine.PorcupineManager
+import ai.picovoice.porcupine.PorcupineManagerCallback
+import android.os.Bundle
+import java.io.File
 
 class VoiceRecognitionService : Service() {
 
+    private lateinit var porcupineManager: PorcupineManager
+    private val CHANNEL_ID = "VoiceRecognitionServiceChannel"
     private lateinit var speechRecognizer: SpeechRecognizer
+
     private var mqttService: MqttService? = null
     private var isBound = false
 
@@ -38,122 +43,141 @@ class VoiceRecognitionService : Service() {
 
     private val lightCount = 3
 
-    override fun onCreate(){
+    override fun onCreate() {
         super.onCreate()
+
+        // 알림 채널 생성 및 포그라운드 서비스 시작
+        createNotificationChannel()
+        startForegroundService()
 
         // MQTT 서비스에 바인딩
         bindService(Intent(this, MqttService::class.java), serviceConnection, Context.BIND_AUTO_CREATE)
 
-        // Foreground Service -> 백그라운드에서 동작
-        startForegroundService()
+        // Porcupine 키워드 감지 시작
+        startKeywordSpotting()
+    }
 
-        // 음성인식기능 초기화 및 리스너 설정
-        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this).apply{
-            setRecognitionListener(object:RecognitionListener{
+    private fun startKeywordSpotting() {
+        val accessKey = "OBG7Ow41WVM0FKV8Clg+g89rgSTdWbfVDG27hZFXoDJSit0TdD9/tA=="
+
+        // Porcupine 모델 및 키워드 파일을 assets 폴더에서 가져와 경로 설정
+        val keywordFilePath = copyAssetToCache("Hey-Rux.ppn")
+        val modelPath = copyAssetToCache("porcupine_params.pv")
+
+        try {
+            porcupineManager = PorcupineManager.Builder()
+                .setAccessKey(accessKey)
+                .setModelPath(modelPath)
+                .setKeywordPath(keywordFilePath)
+                .setSensitivity(0.7f)
+                .build(applicationContext, object : PorcupineManagerCallback {
+                    override fun invoke(keywordIndex: Int) {
+                        Log.d("VoiceRecognition", "Keyword detected! Starting speech recognition.")
+                        startListening()  // 음성 인식 시작
+                    }
+                })
+
+            porcupineManager.start()
+
+        } catch (e: Exception) {
+            Log.e("VoiceRecognitionService", "Porcupine initialization failed: ${e.message}")
+        }
+    }
+
+    // assets 폴더에서 파일을 복사하여 캐시 디렉토리에 저장
+    private fun copyAssetToCache(fileName: String): String {
+        val cacheFile = File(cacheDir, fileName)
+        if (!cacheFile.exists()) {
+            assets.open(fileName).use { inputStream ->
+                cacheFile.outputStream().use { outputStream ->
+                    inputStream.copyTo(outputStream)
+                }
+            }
+        }
+        return cacheFile.path
+    }
+
+    private fun startListening() {
+        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this).apply {
+            setRecognitionListener(object : RecognitionListener {
                 override fun onReadyForSpeech(params: Bundle?) {}
-
                 override fun onBeginningOfSpeech() {}
-
                 override fun onRmsChanged(rmsdB: Float) {}
-
                 override fun onBufferReceived(buffer: ByteArray?) {}
-
                 override fun onEndOfSpeech() {
-                    startListening() // 음성 인식이 끝나면 다시 시작
+                    stopListening()
                 }
 
                 override fun onError(error: Int) {
-                    startListening() // 오류 발생하면 다시 시작
+                    startListening() // 오류 발생 시 다시 시작
                 }
 
                 override fun onResults(results: Bundle?) {
                     val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-
-                    matches?.let{
+                    matches?.let {
                         val recognizedText = it[0]
                         handleCommand(recognizedText)
                     }
-                    startListening() // 결과를 처리한 후 다시 시작
+                    stopListening()
                 }
 
                 override fun onPartialResults(partialResults: Bundle?) {}
-
                 override fun onEvent(eventType: Int, params: Bundle?) {}
             })
         }
-        startListening()
-    }
 
-    private fun startListening(){
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply{
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ko-KR") // 한국어 인식
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ko-KR")  // 한국어 설정
         }
-        speechRecognizer.startListening(intent)
+
+        speechRecognizer.startListening(intent)  // 음성 인식 시작
     }
 
-    private fun handleCommand(command: String){
-        // 모든 공백을 제거하여 비교 수행
-        val nomCommand = command.replace(" ", "")
+    private fun handleCommand(command: String) {
+        Log.d("VoiceRecognition", "Command : $command")
+        val normalizedCommand = command.replace(" ", "")
 
-        // "조명아"가 포함된 명령어만 처리
-        if(nomCommand.contains("조명아")){
-            when{
-                nomCommand.contains("음악모드켜줘")->activateMusicMode()
-                nomCommand.contains("음악모드꺼줘")->deactivateMusicMode()
-                nomCommand.contains("전체켜줘")->toggleAllLights("ON")
-                nomCommand.contains("전체꺼줘")->toggleAllLights("OFF")
+        when {
+            normalizedCommand.contains("음악모드켜줘") -> activateMusicMode()
+            normalizedCommand.contains("음악모드꺼줘") -> deactivateMusicMode()
+            normalizedCommand.contains("전체켜줘") -> toggleAllLights("ON")
+            normalizedCommand.contains("전체꺼줘") -> toggleAllLights("OFF")
+            else -> {
+                val lightNumber = when {
+                    normalizedCommand.contains("1번") -> 1
+                    normalizedCommand.contains("2번") -> 2
+                    normalizedCommand.contains("3번") -> 3
+                    else -> null
+                }
 
-                else -> {
-                    val lightNumber = when {
-                        nomCommand.contains("1번") -> 1
-                        nomCommand.contains("2번") -> 2
-                        nomCommand.contains("3번") -> 3
-                        else -> null
-                    }
-
-                    lightNumber?.let{
-                        when{
-                            nomCommand.contains("켜줘") -> mqttService?.publishLightToggle(it, "ON")
-                            nomCommand.contains("꺼줘") -> mqttService?.publishLightToggle(it, "OFF")
-                            else -> Log.e("VoiceRecognitionService", "커맨드가 잘못됐습니다 : $command")
-                        }
+                lightNumber?.let {
+                    when {
+                        normalizedCommand.contains("켜줘") -> mqttService?.publishLightToggle(it, "ON")
+                        normalizedCommand.contains("꺼줘") -> mqttService?.publishLightToggle(it, "OFF")
+                        else -> Log.e("VoiceRecognitionService", "Invalid command: $command")
                     }
                 }
             }
         }
     }
 
-    // 음악 모드와 관련된 함수 (activateMusicMode & deactivateMusicMode)
     private fun activateMusicMode() {
         mqttService?.publishMusicMode(true)
     }
 
-    private fun deactivateMusicMode(){
+    private fun deactivateMusicMode() {
         mqttService?.publishMusicMode(false)
     }
 
-
-    // 전체 조명 제어 함수
-    private fun toggleAllLights(status: String){
-        for(i in 1..lightCount){
+    private fun toggleAllLights(status: String) {
+        for (i in 1..lightCount) {
             mqttService?.publishLightToggle(i, status)
         }
     }
 
     private fun startForegroundService() {
-        val channelId = "VoiceRecognitionServiceChannel"
-        val channelName = "Voice Recognition Service"
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(channelId, channelName, NotificationManager.IMPORTANCE_DEFAULT).apply {
-                description = "Service for voice recognition"
-            }
-            val manager = getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(channel)
-        }
-
-        val notification: Notification = NotificationCompat.Builder(this, channelId)
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Voice Recognition Service")
             .setContentText("Listening for voice commands...")
             .setSmallIcon(R.drawable.ic_launcher_foreground)
@@ -162,16 +186,30 @@ class VoiceRecognitionService : Service() {
         startForeground(1, notification)
     }
 
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Voice Recognition Service",
+                NotificationManager.IMPORTANCE_DEFAULT
+            ).apply {
+                description = "Service for voice recognition"
+            }
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(channel)
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
-        if(isBound){
+        porcupineManager.delete() // Porcupine 해제
+        speechRecognizer.destroy() // SpeechRecognizer 해제
+        if (isBound) {
             unbindService(serviceConnection)
         }
-        speechRecognizer.destroy()
     }
 
     override fun onBind(intent: Intent?): IBinder? {
         return null
     }
-
 }

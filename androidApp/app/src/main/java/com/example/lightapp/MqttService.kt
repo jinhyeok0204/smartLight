@@ -19,6 +19,7 @@ class MqttService : Service() {
         fun getService() : MqttService = this@MqttService
     }
 
+
     // LocalBinder의 인스턴스 생성
     private val binder = LocalBinder()
 
@@ -56,6 +57,7 @@ class MqttService : Service() {
                 else{
                     Log.d("MQTT", "Connected to MQTT broker")
                     subscribeToLightStatus()
+                    getLightStatus()
                 }
             }
     }
@@ -69,9 +71,10 @@ class MqttService : Service() {
     private fun subscribeToLightStatus(){
         for (i in 1..lightCount){
             mqttClient.subscribeWith()
-                .topicFilter("home/light$i/status")
+                .topicFilter("app/light$i/status")
                 .qos(MqttQos.AT_LEAST_ONCE)
                 .callback{publish ->
+                    Log.e("subscribe", "${publish}")
                     handleIncomingMessage(i, publish.payloadAsBytes)
                 }
                 .send()
@@ -80,11 +83,24 @@ class MqttService : Service() {
 
     private fun handleIncomingMessage(lightNumber: Int, payload: ByteArray){
         val message = String(payload, StandardCharsets.UTF_8)
+        Log.d("MQTT_RECEIVE", "Received from MQTT: Light $lightNumber, Status $message")
         val intent = Intent("LIGHT_STATUS_UPDATE").apply{
             putExtra("LIGHT_NUMBER", lightNumber)
             putExtra("STATUS", message)
         }
         sendBroadcast(intent)
+    }
+
+    private fun getLightStatus(){
+        for(i in 1.. lightCount){
+            if(mqttClient.state.isConnected){
+                mqttClient.publishWith().topic("home/light$i/status").payload(ByteArray(0)).send()
+            }
+            else{
+                Toast.makeText(this, "Not Connected to MQTT broker", Toast.LENGTH_SHORT).show()
+            }
+        }
+
     }
 
     fun publishLightToggle(lightNumber: Int, status: String){

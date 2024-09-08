@@ -74,6 +74,13 @@ android {
     kotlinOptions {
         jvmTarget = "1.8"
     }
+    sourceSets {
+        getByName("main") {
+            assets {
+                srcDirs("src/main/assets", "src/main/assets/2")
+            }
+        }
+    }
 }
 
 dependencies {
@@ -89,6 +96,8 @@ dependencies {
     implementation(libs.androidx.constraintlayout)
 
     implementation("androidx.localbroadcastmanager:localbroadcastmanager:1.1.0")
+
+    implementation ("ai.picovoice:porcupine-android:3.0.0")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit.v113)
