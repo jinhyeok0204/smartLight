@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="color_array">
+        <item>WHITE</item>
+        <item>RED</item>
+        <item>ORANGE</item>
+        <item>YELLOW</item>
+        <item>GREEN</item>
+        <item>BLUE</item>
+        <item>PURPLE</item>
+    </string-array>
+
+    <string-array name="brightness_array">
+        <item>100%</item>
+        <item>75%</item>
+        <item>50%</item>
+        <item>25%</item>
+    </string-array>
+</resources>
