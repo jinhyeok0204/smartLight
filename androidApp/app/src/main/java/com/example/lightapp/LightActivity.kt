@@ -17,6 +17,7 @@ import android.view.View
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.Spinner
@@ -41,6 +42,9 @@ class LightActivity : AppCompatActivity() {
     private var mqttService: MqttService? = null
     private var isBound = false
     private var musicModeOn = false
+
+    // 뷰 ID를 속성으로 정의
+    private val lightViewIds = mutableListOf<Triple<Int, Int, Int>>() // (colorCheckBoxId, colorSpinnerId, brightnessSpinnerId)
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
@@ -104,10 +108,28 @@ class LightActivity : AppCompatActivity() {
         for (i in 1..lightCount) {
             val lightLayout = createLightLayout(i)
             lightContainer.addView(lightLayout)
+
+            // 뷰 ID를 리스트에 저장
+            val (colorCheckBoxId, colorSpinnerId, brightnessSpinnerId) = lightViewIds[i - 1]
+
+            // 뷰를 ID로 참조
+            val colorCheckBox = lightLayout.findViewById<CheckBox>(colorCheckBoxId)
+            val colorSpinner = lightLayout.findViewById<Spinner>(colorSpinnerId)
+            val brightnessSpinner = lightLayout.findViewById<Spinner>(brightnessSpinnerId)
+
+            // 이후 로직 처리
         }
     }
 
     private fun createLightLayout(lightNumber: Int): ConstraintLayout {
+        // ID를 생성할 때 변수로 저장
+        val colorCheckBoxId = View.generateViewId()
+        val colorSpinnerId = View.generateViewId()
+        val brightnessSpinnerId = View.generateViewId()
+
+        // ID를 리스트에 추가
+        lightViewIds.add(Triple(colorCheckBoxId, colorSpinnerId, brightnessSpinnerId))
+
         val lightLayout = ConstraintLayout(this).apply {
             id = View.generateViewId()
             layoutParams = LinearLayout.LayoutParams(
@@ -118,11 +140,12 @@ class LightActivity : AppCompatActivity() {
             }
         }
 
+        // 뷰 생성 및 ID 설정
         val textView = TextView(this).apply {
             id = View.generateViewId()
             text = "Light $lightNumber Status: OFF"
             textSize = 30f
-            textAlignment = View.TEXT_ALIGNMENT_CENTER // 중앙 정렬
+            textAlignment = View.TEXT_ALIGNMENT_CENTER
         }
 
         val imageView = ImageView(this).apply {
@@ -132,8 +155,14 @@ class LightActivity : AppCompatActivity() {
             scaleType = ImageView.ScaleType.CENTER_INSIDE
         }
 
+        val colorCheckBox = CheckBox(this).apply {
+            id = colorCheckBoxId
+            text = "Use Edit Color"
+            isChecked = false
+        }
+
         val colorSpinner = Spinner(this).apply {
-            id = View.generateViewId()
+            id = colorSpinnerId
             adapter = ArrayAdapter.createFromResource(
                 this@LightActivity,
                 R.array.color_array,
@@ -144,7 +173,7 @@ class LightActivity : AppCompatActivity() {
         }
 
         val brightnessSpinner = Spinner(this).apply {
-            id = View.generateViewId()
+            id = brightnessSpinnerId
             adapter = ArrayAdapter.createFromResource(
                 this@LightActivity,
                 R.array.brightness_array,
@@ -157,7 +186,7 @@ class LightActivity : AppCompatActivity() {
         val comboBoxLayout = LinearLayout(this).apply {
             id = View.generateViewId()
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER // 중앙 정렬
+            gravity = Gravity.CENTER
             addView(colorSpinner)
             addView(brightnessSpinner)
         }
@@ -168,14 +197,12 @@ class LightActivity : AppCompatActivity() {
             setOnClickListener { openColorPicker(lightNumber) }
         }
 
-        // ON 버튼을 먼저 왼쪽에 배치
         val onButton = Button(this).apply {
             id = View.generateViewId()
             text = "ON"
             setOnClickListener { toggleLight(lightNumber, "ON") }
         }
 
-        // OFF 버튼을 오른쪽에 배치
         val offButton = Button(this).apply {
             id = View.generateViewId()
             text = "OFF"
@@ -185,53 +212,55 @@ class LightActivity : AppCompatActivity() {
         val onOffLayout = LinearLayout(this).apply {
             id = View.generateViewId()
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER // 중앙 정렬
-            addView(onButton)  // ON 버튼 먼저
-            addView(offButton) // OFF 버튼 나중에
+            gravity = Gravity.CENTER
+            addView(onButton)
+            addView(offButton)
         }
 
         lightLayout.addView(textView)
         lightLayout.addView(imageView)
         lightLayout.addView(comboBoxLayout)
         lightLayout.addView(editButton)
+        lightLayout.addView(colorCheckBox)
         lightLayout.addView(onOffLayout)
 
         val set = ConstraintSet()
         set.clone(lightLayout)
 
-        // 텍스트뷰 설정
         set.connect(textView.id, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START, 16)
         set.connect(textView.id, ConstraintSet.TOP, ConstraintSet.PARENT_ID, ConstraintSet.TOP, 16)
         set.connect(textView.id, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END, 16)
         set.setHorizontalBias(textView.id, 0.5f)
 
-        // 이미지뷰 설정
         set.connect(imageView.id, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START, 16)
         set.connect(imageView.id, ConstraintSet.TOP, textView.id, ConstraintSet.BOTTOM, 16)
         set.connect(imageView.id, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END, 16)
         set.setHorizontalBias(imageView.id, 0.5f)
 
-        // ComboBox 레이아웃 설정 (가로 배치)
         set.connect(comboBoxLayout.id, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START, 16)
         set.connect(comboBoxLayout.id, ConstraintSet.TOP, imageView.id, ConstraintSet.BOTTOM, 16)
         set.connect(comboBoxLayout.id, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END, 16)
         set.setHorizontalBias(comboBoxLayout.id, 0.5f)
 
-        // Edit 버튼 설정 (위쪽)
         set.connect(editButton.id, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START, 16)
         set.connect(editButton.id, ConstraintSet.TOP, comboBoxLayout.id, ConstraintSet.BOTTOM, 16)
         set.connect(editButton.id, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END, 16)
         set.setHorizontalBias(editButton.id, 0.5f)
 
-        // ON/OFF 버튼 설정 (가로 배치)
+        set.connect(colorCheckBox.id, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START, 16)
+        set.connect(colorCheckBox.id, ConstraintSet.TOP, editButton.id, ConstraintSet.BOTTOM, 16)
+        set.connect(colorCheckBox.id, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END, 16)
+        set.setHorizontalBias(colorCheckBox.id, 0.5f)
+
         set.connect(onOffLayout.id, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START, 16)
-        set.connect(onOffLayout.id, ConstraintSet.TOP, editButton.id, ConstraintSet.BOTTOM, 16)
+        set.connect(onOffLayout.id, ConstraintSet.TOP, colorCheckBox.id, ConstraintSet.BOTTOM, 16)
         set.connect(onOffLayout.id, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END, 16)
         set.connect(onOffLayout.id, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM, 16)
         set.setHorizontalBias(onOffLayout.id, 0.5f)
 
         set.applyTo(lightLayout)
 
+        // 반환할 때 ID도 함께 반환
         return lightLayout
     }
 
@@ -251,8 +280,28 @@ class LightActivity : AppCompatActivity() {
 
     private fun toggleLight(lightNumber: Int, status: String) {
         if (isBound) {
-            val color = selectedColors[lightNumber - 1]
-            val brightness = selectedBrightness[lightNumber - 1]
+            val lightLayout = binding.lightContainer.getChildAt(lightNumber - 1) as ConstraintLayout
+
+            // ID를 이용하여 뷰를 찾습니다.
+            val (colorCheckBoxId, colorSpinnerId, brightnessSpinnerId) = lightViewIds[lightNumber - 1]
+            val colorCheckBox = lightLayout.findViewById<CheckBox>(colorCheckBoxId)
+            val colorSpinner = lightLayout.findViewById<Spinner>(colorSpinnerId)
+            val brightnessSpinner = lightLayout.findViewById<Spinner>(brightnessSpinnerId)
+
+            // 색상 결정
+            val color: Int
+            if (colorCheckBox.isChecked) {
+                // Use color from color picker
+                color = selectedColors[lightNumber - 1]
+            } else {
+                // Use color from spinner
+                val colorName = colorSpinner.selectedItem.toString()
+                color = getColorFromName(colorName)
+            }
+
+            // 밝기 결정
+            val brightnessString = brightnessSpinner.selectedItem.toString()
+            val brightness = brightnessString.replace("%", "").toIntOrNull() ?: 100
             val r = (Color.red(color) * (brightness / 100.0)).toInt()
             val g = (Color.green(color) * (brightness / 100.0)).toInt()
             val b = (Color.blue(color) * (brightness / 100.0)).toInt()
