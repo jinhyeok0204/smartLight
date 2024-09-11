@@ -106,6 +106,11 @@ class LightActivity : AppCompatActivity() {
             if (music_status) toggleMusicMode()
             toggleActionMode()
         }
+
+        binding.feedbackButton.setOnClickListener {
+            val intent = Intent(this, FeedbackActivity::class.java)
+            startActivity(intent)  // FeedbackActivity로 이동
+        }
     }
 
     private fun setupLights() {

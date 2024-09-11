@@ -17,13 +17,15 @@ import androidx.core.app.NotificationCompat
 import ai.picovoice.porcupine.PorcupineManager
 import ai.picovoice.porcupine.PorcupineManagerCallback
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import java.io.File
 
 class VoiceRecognitionService : Service() {
 
     private lateinit var porcupineManager: PorcupineManager
     private val CHANNEL_ID = "VoiceRecognitionServiceChannel"
-    private lateinit var speechRecognizer: SpeechRecognizer
+    private var speechRecognizer: SpeechRecognizer? = null
 
     private var mqttService: MqttService? = null
     private var isBound = false
@@ -42,6 +44,7 @@ class VoiceRecognitionService : Service() {
     }
 
     private val lightCount = 3
+    private var isListening = false
 
     override fun onCreate() {
         super.onCreate()
@@ -98,40 +101,93 @@ class VoiceRecognitionService : Service() {
     }
 
     private fun startListening() {
-        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this).apply {
-            setRecognitionListener(object : RecognitionListener {
-                override fun onReadyForSpeech(params: Bundle?) {}
-                override fun onBeginningOfSpeech() {}
-                override fun onRmsChanged(rmsdB: Float) {}
-                override fun onBufferReceived(buffer: ByteArray?) {}
-                override fun onEndOfSpeech() {
-                    stopListening()
-                }
 
-                override fun onError(error: Int) {
-                    startListening() // 오류 발생 시 다시 시작
-                }
+        porcupineManager.stop()
 
+        if (isListening) {
+            Log.d("VoiceRecognition", "Already listening, skipping start.")
+            return
+        }
+
+        if (speechRecognizer == null) {
+            speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
+            if(!SpeechRecognizer.isRecognitionAvailable(this)){
+                Log.e("VoiceRecognition", "Speech recognition is not available on this device.")
+                return
+            }
+
+            speechRecognizer?.setRecognitionListener(object : RecognitionListener {
                 override fun onResults(results: Bundle?) {
                     val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                     matches?.let {
                         val recognizedText = it[0]
                         handleCommand(recognizedText)
                     }
-                    stopListening()
+                    stopListening() // 음성 인식 끝나면 porcupine 재시작
                 }
 
                 override fun onPartialResults(partialResults: Bundle?) {}
+
                 override fun onEvent(eventType: Int, params: Bundle?) {}
+
+                override fun onError(error: Int) {
+                    Log.e("VoiceRecognition", "Error occurred: $error")
+                    stopListening() // 에러 발생 시 Porcupine wotlwkr
+
+                    if (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+                        Log.d("VoiceRecognition", "No match found or timeout, restarting listening.")
+                        startListening()
+                    } else if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) {
+                        Log.d("VoiceRecognition", "Recognizer busy, waiting before restart.")
+                        Handler(Looper.getMainLooper()).postDelayed({ startListening() }, 1000)
+                    } else {
+                        startListening()
+                    }
+                }
+
+                override fun onReadyForSpeech(params: Bundle?) {
+                    Log.d("VoiceRecognition", "Ready for speech.")
+                }
+
+                override fun onBeginningOfSpeech() {
+                    Log.d("VoiceRecognition", "Speech started.")
+                }
+
+                override fun onRmsChanged(rmsdB: Float) {}
+
+                override fun onBufferReceived(buffer: ByteArray?) {}
+
+                override fun onEndOfSpeech() {
+                    Log.d("VoiceRecognition", "Speech ended.")
+                    stopListening()
+                }
             })
         }
 
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ko-KR")  // 한국어 설정
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ko-KR")
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2000)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1500)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
         }
 
-        speechRecognizer.startListening(intent)  // 음성 인식 시작
+
+        isListening = true
+        speechRecognizer?.startListening(intent)
+    }
+
+    private fun stopListening() {
+        isListening = false
+        speechRecognizer?.stopListening()
+        speechRecognizer?.destroy()
+        speechRecognizer = null
+
+        try{
+            porcupineManager.start()
+        } catch(e: Exception){
+            Log.e("VoiceRecognitionService", "Failed to restart Porcupine: ${e.message}")
+        }
     }
 
     private fun handleCommand(command: String) {
@@ -203,7 +259,7 @@ class VoiceRecognitionService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         porcupineManager.delete() // Porcupine 해제
-        speechRecognizer.destroy() // SpeechRecognizer 해제
+        speechRecognizer?.destroy() // SpeechRecognizer 해제
         if (isBound) {
             unbindService(serviceConnection)
         }

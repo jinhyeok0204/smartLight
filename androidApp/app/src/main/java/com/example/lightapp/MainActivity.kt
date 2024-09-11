@@ -17,7 +17,7 @@ class MainActivity : AppCompatActivity() {
 
     private val client = OkHttpClient()
     private val binding by lazy { ActivityMainBinding.inflate(layoutInflater) }
-    private val server_uri = BuildConfig.SERVER_URI
+    private val serverUri by lazy { BuildConfig.SERVER_URI }  // 서버 URI를 BuildConfig에서 가져옴
 
     // 마이크 권한 요청 코드
     private val REQUEST_CODE_MIC_PERMISSION = 1001
@@ -30,9 +30,6 @@ class MainActivity : AppCompatActivity() {
         // 권한을 확인하고 필요한 경우 요청
         checkAndRequestPermissions()
 
-        // 음성 인식 서비스 시작
-        startVoiceRecognitionService()
-
         // 로그인 버튼 클릭 시 동작
         binding.buttonLogin.setOnClickListener {
             val userId = binding.editTextUserId.text.toString()
@@ -40,7 +37,7 @@ class MainActivity : AppCompatActivity() {
 
             if (userId.isNotEmpty() && password.isNotEmpty()) {
                 binding.textViewLoginError.visibility = TextView.GONE
-                login(userId, password) // login
+                login(userId, password) // login 함수 호출
             } else {
                 binding.textViewLoginError.text = "Please enter User ID and Password"
                 binding.textViewLoginError.visibility = TextView.VISIBLE
@@ -75,7 +72,13 @@ class MainActivity : AppCompatActivity() {
             // 필요한 권한 요청
             if (permissionsToRequest.isNotEmpty()) {
                 requestPermissions(permissionsToRequest.toTypedArray(), REQUEST_CODE_MIC_PERMISSION)
+            } else {
+                // 모든 권한이 이미 허용된 경우에만 음성 인식 서비스 시작
+                startVoiceRecognitionService()
             }
+        } else {
+            // M 이하의 버전에서는 권한 확인 없이 음성 인식 서비스 시작
+            startVoiceRecognitionService()
         }
     }
 
@@ -84,18 +87,28 @@ class MainActivity : AppCompatActivity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQUEST_CODE_MIC_PERMISSION) {
-            // 권한이 허용되었는지 확인
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // 권한이 허용된 경우 음성 인식 서비스 시작
                 startVoiceRecognitionService()
             } else {
-                Toast.makeText(this, "마이크 권한이 필요합니다.", Toast.LENGTH_SHORT).show()
+                // 권한이 거부된 경우 안내 메시지
+                if (shouldShowRequestPermissionRationale(android.Manifest.permission.RECORD_AUDIO)) {
+                    Toast.makeText(this, "마이크 권한이 필요합니다.", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, "설정에서 마이크 권한을 허용해주세요.", Toast.LENGTH_LONG).show()
+                }
             }
         }
     }
 
     // 로그인 요청 함수
     private fun login(userId: String, password: String) {
-        val url = "http://${server_uri}:5000/login"
+        if (serverUri.isNullOrEmpty()) {
+            Toast.makeText(this, "서버 URL이 설정되지 않았습니다.", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val url = "http://$serverUri:5000/login"
         val formBody = FormBody.Builder()
             .add("username", userId)
             .add("password", password)
@@ -137,6 +150,6 @@ class MainActivity : AppCompatActivity() {
     @RequiresApi(Build.VERSION_CODES.O)
     private fun startVoiceRecognitionService() {
         val intent = Intent(this, VoiceRecognitionService::class.java)
-        startForegroundService(intent) // Foreground 서비스로 시작
+        startForegroundService(intent)  // Foreground 서비스로 시작
     }
 }
