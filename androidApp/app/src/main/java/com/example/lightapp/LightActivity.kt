@@ -41,7 +41,8 @@ class LightActivity : AppCompatActivity() {
     private var selectedBrightness = mutableListOf(100, 100, 100) // 추가된 밝기 저장
     private var mqttService: MqttService? = null
     private var isBound = false
-    private var musicModeOn = false
+    private var music_status = false // Music Mode 상태
+    private var action_status = false // Behavior Mode 상태
 
     // 뷰 ID를 속성으로 정의
     private val lightViewIds = mutableListOf<Triple<Int, Int, Int>>() // (colorCheckBoxId, colorSpinnerId, brightnessSpinnerId)
@@ -59,47 +60,23 @@ class LightActivity : AppCompatActivity() {
         }
     }
 
-    // 상태 업데이트를 수신하는 브로드캐스트 리시버
-    private val statusReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            val lightNumber = intent?.getIntExtra("LIGHT_NUMBER", -1) ?: return
-            val status = intent.getStringExtra("STATUS") ?: return
-            updateLightStatus(lightNumber, status)
-        }
-    }
-
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(binding.root)
 
-        registerReceiver(statusReceiver, IntentFilter("LIGHT_STATUS_UPDATE"), RECEIVER_NOT_EXPORTED)
-
         setupLights()
 
+        // Music Mode 버튼 클릭 리스너
         binding.musicModeButton.setOnClickListener {
+            if (action_status) toggleActionMode()
             toggleMusicMode()
         }
-    }
 
-    override fun onStart() {
-        super.onStart()
-        Intent(this, MqttService::class.java).also { intent ->
-            bindService(intent, connection, Context.BIND_AUTO_CREATE)
+        // Behavior Mode 버튼 클릭 리스너
+        binding.actionModeButton.setOnClickListener {
+            if (music_status) toggleMusicMode()
+            toggleActionMode()
         }
-    }
-
-    override fun onStop() {
-        super.onStop()
-        if (isBound) {
-            unbindService(connection)
-            isBound = false
-        }
-    }
-
-    override fun onDestroy() {
-        unregisterReceiver(statusReceiver)
-        super.onDestroy()
     }
 
     private fun setupLights() {
@@ -109,25 +86,21 @@ class LightActivity : AppCompatActivity() {
             val lightLayout = createLightLayout(i)
             lightContainer.addView(lightLayout)
 
-            // 뷰 ID를 리스트에 저장
             val (colorCheckBoxId, colorSpinnerId, brightnessSpinnerId) = lightViewIds[i - 1]
-
-            // 뷰를 ID로 참조
             val colorCheckBox = lightLayout.findViewById<CheckBox>(colorCheckBoxId)
             val colorSpinner = lightLayout.findViewById<Spinner>(colorSpinnerId)
             val brightnessSpinner = lightLayout.findViewById<Spinner>(brightnessSpinnerId)
-
-            // 이후 로직 처리
+            binding.musicModeButton.setBackgroundColor(Color.GRAY)
+            binding.actionModeButton.setBackgroundColor(Color.GRAY)
         }
     }
 
     private fun createLightLayout(lightNumber: Int): ConstraintLayout {
-        // ID를 생성할 때 변수로 저장
         val colorCheckBoxId = View.generateViewId()
         val colorSpinnerId = View.generateViewId()
         val brightnessSpinnerId = View.generateViewId()
+        val editButtonId = View.generateViewId() // Edit Color 버튼 ID 생성
 
-        // ID를 리스트에 추가
         lightViewIds.add(Triple(colorCheckBoxId, colorSpinnerId, brightnessSpinnerId))
 
         val lightLayout = ConstraintLayout(this).apply {
@@ -140,7 +113,7 @@ class LightActivity : AppCompatActivity() {
             }
         }
 
-        // 뷰 생성 및 ID 설정
+        // 뷰 생성
         val textView = TextView(this).apply {
             id = View.generateViewId()
             text = "Light $lightNumber Status: OFF"
@@ -183,18 +156,20 @@ class LightActivity : AppCompatActivity() {
             }
         }
 
+        val editButton = Button(this).apply {
+            id = editButtonId
+            text = "  Edit Color $lightNumber  "
+            setBackgroundColor(selectedColors[lightNumber - 1]) // Edit Color 버튼 배경색 설정
+            setOnClickListener { openColorPicker(lightNumber, this) }
+        }
+
+        // 색상 콤보박스와 Edit Color 버튼을 함께 배치
         val comboBoxLayout = LinearLayout(this).apply {
             id = View.generateViewId()
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            addView(colorSpinner)
-            addView(brightnessSpinner)
-        }
-
-        val editButton = Button(this).apply {
-            id = View.generateViewId()
-            text = "Edit Color $lightNumber"
-            setOnClickListener { openColorPicker(lightNumber) }
+            addView(colorSpinner) // 왼쪽에 색상 콤보박스
+            addView(editButton)   // 오른쪽에 Edit Color 버튼
         }
 
         val onButton = Button(this).apply {
@@ -219,11 +194,12 @@ class LightActivity : AppCompatActivity() {
 
         lightLayout.addView(textView)
         lightLayout.addView(imageView)
-        lightLayout.addView(comboBoxLayout)
-        lightLayout.addView(editButton)
+        lightLayout.addView(brightnessSpinner) // 밝기 스피너를 상단에 배치
+        lightLayout.addView(comboBoxLayout)    // 색상 콤보박스와 Edit Color 버튼
         lightLayout.addView(colorCheckBox)
         lightLayout.addView(onOffLayout)
 
+        // Constraint 설정
         val set = ConstraintSet()
         set.clone(lightLayout)
 
@@ -237,35 +213,33 @@ class LightActivity : AppCompatActivity() {
         set.connect(imageView.id, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END, 16)
         set.setHorizontalBias(imageView.id, 0.5f)
 
+        set.connect(brightnessSpinner.id, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START, 16)
+        set.connect(brightnessSpinner.id, ConstraintSet.TOP, imageView.id, ConstraintSet.BOTTOM, 16)
+        set.connect(brightnessSpinner.id, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END, 16)
+        set.setHorizontalBias(brightnessSpinner.id, 0.5f)
+
         set.connect(comboBoxLayout.id, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START, 16)
-        set.connect(comboBoxLayout.id, ConstraintSet.TOP, imageView.id, ConstraintSet.BOTTOM, 16)
+        set.connect(comboBoxLayout.id, ConstraintSet.TOP, brightnessSpinner.id, ConstraintSet.BOTTOM, 16)
         set.connect(comboBoxLayout.id, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END, 16)
         set.setHorizontalBias(comboBoxLayout.id, 0.5f)
 
-        set.connect(editButton.id, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START, 16)
-        set.connect(editButton.id, ConstraintSet.TOP, comboBoxLayout.id, ConstraintSet.BOTTOM, 16)
-        set.connect(editButton.id, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END, 16)
-        set.setHorizontalBias(editButton.id, 0.5f)
-
         set.connect(colorCheckBox.id, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START, 16)
-        set.connect(colorCheckBox.id, ConstraintSet.TOP, editButton.id, ConstraintSet.BOTTOM, 16)
+        set.connect(colorCheckBox.id, ConstraintSet.TOP, comboBoxLayout.id, ConstraintSet.BOTTOM, 16)
         set.connect(colorCheckBox.id, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END, 16)
         set.setHorizontalBias(colorCheckBox.id, 0.5f)
 
         set.connect(onOffLayout.id, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START, 16)
         set.connect(onOffLayout.id, ConstraintSet.TOP, colorCheckBox.id, ConstraintSet.BOTTOM, 16)
         set.connect(onOffLayout.id, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END, 16)
-        set.connect(onOffLayout.id, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM, 16)
         set.setHorizontalBias(onOffLayout.id, 0.5f)
 
         set.applyTo(lightLayout)
 
-        // 반환할 때 ID도 함께 반환
+        lightStatusViews.add(textView)
+        lightImageViews.add(imageView)
+
         return lightLayout
     }
-
-
-    // Helper function for mapping color names to RGB values
     private fun getColorFromName(colorName: String): Int {
         return when (colorName) {
             "RED" -> Color.RED
@@ -307,15 +281,35 @@ class LightActivity : AppCompatActivity() {
             val b = (Color.blue(color) * (brightness / 100.0)).toInt()
 
             mqttService?.publishLightToggle(lightNumber, "$status/$r/$g/$b")
+
+            val statusText = "Light $lightNumber Status: $status"
+            lightStatusViews[lightNumber - 1].text = statusText
+            val lightImage = if (status == "ON") R.drawable.light_on else R.drawable.light_off
+            lightImageViews[lightNumber - 1].setImageResource(lightImage)
         }
     }
+    // Music Mode 상태 토글
+    private fun toggleMusicMode() {
+        music_status = !music_status
+        val color = if (music_status) Color.parseColor("#6200EE") else Color.GRAY
+        mqttService?.publishMusicMode(music_status)
+        binding.musicModeButton.setBackgroundColor(color)
+    }
 
+    // Behavior Mode 상태 토글
+    private fun toggleActionMode() {
+        action_status = !action_status
+        val color = if (action_status) Color.parseColor("#6200EE") else Color.GRAY
+        mqttService?.publishActionMode(action_status)
+        binding.actionModeButton.setBackgroundColor(color)
+    }
 
-    // 색상 선택을 위한 팝업 열기
-    private fun openColorPicker(lightNumber: Int) {
+    // Color Picker 다이얼로그
+    private fun openColorPicker(lightNumber: Int, editButton: Button) {
         val dialog = AmbilWarnaDialog(this, selectedColors[lightNumber - 1], object : AmbilWarnaDialog.OnAmbilWarnaListener {
             override fun onOk(dialog: AmbilWarnaDialog?, color: Int) {
                 selectedColors[lightNumber - 1] = color
+                editButton.setBackgroundColor(color) // 선택한 색상으로 Edit Color 버튼 배경 변경
             }
 
             override fun onCancel(dialog: AmbilWarnaDialog?) {
@@ -325,22 +319,17 @@ class LightActivity : AppCompatActivity() {
         dialog.show()
     }
 
-    private fun updateLightStatus(lightNumber: Int, status: String) {
-        Log.d("LIGHT", "$lightNumber , $status")
-        lightStatusViews[lightNumber - 1].text = "Light $lightNumber Status: $status"
-        updateLightImage(lightNumber - 1, status)
+
+    override fun onStart() {
+        super.onStart()
+        bindService(Intent(this, MqttService::class.java), connection, Context.BIND_AUTO_CREATE)
     }
 
-    private fun updateLightImage(index: Int, status: String) {
-        Log.d("LIGHTIMG", "lgiht status: $status")
-        val imageRes = if (status == "ON") R.drawable.light_on else R.drawable.light_off
-        lightImageViews[index].setImageResource(imageRes)
-    }
-
-    // Music Mode 토글
-    private fun toggleMusicMode() {
-        musicModeOn = !musicModeOn
-        val status = if (musicModeOn) true else false
-        mqttService?.publishMusicMode(status)
+    override fun onStop() {
+        super.onStop()
+        if (isBound) {
+            unbindService(connection)
+            isBound = false
+        }
     }
 }

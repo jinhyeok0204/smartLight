@@ -131,6 +131,20 @@ class MqttService : Service() {
         }
     }
 
+    fun publishActionMode(turnOn: Boolean){
+        val message = if (turnOn) "ON" else "OFF"
+        if(mqttClient.state.isConnected){
+            mqttClient.publishWith()
+                .topic("home/actionmode")
+                .payload(message.toByteArray(StandardCharsets.UTF_8))
+                .qos(MqttQos.AT_LEAST_ONCE)
+                .send()
+            Log.d("MqttService", "Action mode set to $message")
+        } else {
+            Toast.makeText(this, "Not connected to MQTT broker", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     override fun onBind(intent:Intent?): IBinder {
         return binder
     }

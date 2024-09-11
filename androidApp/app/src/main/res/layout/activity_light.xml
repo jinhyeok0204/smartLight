@@ -21,19 +21,18 @@
             android:orientation="vertical" />
     </ScrollView>
 
-    <!-- Feedback과 MusicMode 버튼을 나란히 배치 -->
+    <!-- BehaviorMode과 MusicMode 버튼을 나란히 배치 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal">
 
         <Button
-            android:id="@+id/feedbackButton"
+            android:id="@+id/actionModeButton"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="Give Feedback"
-            android:background="@color/design_default_color_primary"
+            android:text="Action Mode"
             android:textColor="@android:color/white"
             android:padding="12dp" />
 
@@ -43,9 +42,17 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="Music Mode"
-            android:background="@color/design_default_color_primary"
             android:textColor="@android:color/white"
             android:padding="12dp" />
     </LinearLayout>
 
+    <!-- Give Feedback 버튼을 조명 상태 아래에 배치 -->
+    <Button
+        android:id="@+id/feedbackButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Give Feedback"
+        android:background="@color/design_default_color_primary"
+        android:textColor="@android:color/white"
+        android:padding="12dp" />
 </LinearLayout>
