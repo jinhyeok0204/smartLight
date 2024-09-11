@@ -52,6 +52,8 @@ class LightActivity : AppCompatActivity() {
             val binder = service as MqttService.LocalBinder
             mqttService = binder.getService()
             isBound = true
+
+            mqttService?.getLightStatus()
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
@@ -60,9 +62,36 @@ class LightActivity : AppCompatActivity() {
         }
     }
 
+    private val statusReceiver = object : BroadcastReceiver(){
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val lightNumber = intent?.getIntExtra("LIGHT_NUMBER", -1) ?: return
+            val status = intent.getStringExtra("STATUS") ?: return
+            Log.d("STATUS_RECEIVER", "Received update: Light $lightNumber, Status $status")
+            updateLightStatus(lightNumber, status)
+        }
+    }
+
+    private fun updateLightStatus(lightNumber: Int, status:String){
+        runOnUiThread{
+        Log.d("LIGHT", "$lightNumber , $status")
+        Log.d("LL", "here!!!!")
+        lightStatusViews[lightNumber - 1].text = "Light $lightNumber Status: $status"
+        updateLightImage(lightNumber - 1, status)
+        }
+    }
+
+    private fun updateLightImage(index: Int, status: String){
+        val imageRes = if (status == "ON") R.drawable.light_on else R.drawable.light_off
+        lightImageViews[index].setImageResource(imageRes)
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(binding.root)
+
+        val intentFilter = IntentFilter("LIGHT_STATUS_UPDATE")
+        registerReceiver(statusReceiver, intentFilter, RECEIVER_NOT_EXPORTED)
 
         setupLights()
 

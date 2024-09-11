@@ -57,7 +57,7 @@ class MqttService : Service() {
                 else{
                     Log.d("MQTT", "Connected to MQTT broker")
                     subscribeToLightStatus()
-                    getLightStatus()
+                    //getLightStatus()
                 }
             }
     }
@@ -92,7 +92,7 @@ class MqttService : Service() {
 
     }
 
-    private fun getLightStatus(){
+    fun getLightStatus(){
         for(i in 1.. lightCount){
             if(mqttClient.state.isConnected){
                 mqttClient.publishWith().topic("home/light$i/status").payload(ByteArray(0)).send()
